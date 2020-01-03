@@ -6,7 +6,6 @@ const readline = require('readline');
 
 var allData = [];
 var schoolIds = [];
-var validSchoolIds = [];
 var json;
 var sheets;
 var currRow = 2;
@@ -39,52 +38,13 @@ function getSchoolIds() {
 	function(err, response) {
     schoolIds = response['data']['values'][0];
 		console.log(schoolIds);
-		validateNewIds();
+		for(var i = 0;i < schoolIds.length;i++) {
+			scrape(schoolIds[i]);
+		}
   });
 }
 
-
-function validateNewIds() {
-	sheets.spreadsheets.values.get({
-		spreadsheetId: SPREADSHEET_ID,
-		range: 'Sheet1!A2:A',
-		majorDimension: "COLUMNS",
-	},
-	function(err, response) {
-		console.log(response['data']);
-		var names = response['data']['values'];
-		if(typeof names == 'undefined') {
-			for(var i = 0;i < schoolIds.length;i++) {
-				validSchoolIds[i] = true;
-			}
-		} else {
-			for(var i = 0;i < names[0].length;i++) {
-				validSchoolIds[i] = (names[0][i] == '');
-			}
-		}
-		
-		initScrape();
-	});
-}
-
-function initScrape() {
-	const highestValid = getHighestValid();
-	for(var i = 0;i < schoolIds.length;i++) {
-		if(validSchoolIds[i]) {
-			scrape(schoolIds[i], (i == highestValid));
-		}
-	}
-}
-
-function getHighestValid() {
-	for(var i = validSchoolIds.length - 1;i >= 0;i--) {
-		if(validSchoolIds[i]) {
-			return i;
-		}
-	}
-}
-
-function scrape(schoolId, send) {
+function scrape(schoolId) {
 	axios.get(stateApiUrl)
 		.then(response => {
 			json = JSON.parse(JSON.stringify(response.data));
@@ -141,10 +101,7 @@ function scrape(schoolId, send) {
 			
 			console.log(sheetData);
 			allData.push(sheetData);
-			console.log(send);
-			if(send) {
-				appendData();
-			}
+			appendData(sheetData);
 		})
 		.catch(error => {
 			console.log(error);
@@ -215,14 +172,13 @@ function getAccessToken(oAuth2Client, callback) {
 	});
 }
 
-function appendData() {
-	var formattedData = JSON.parse(JSON.stringify(allData));
+function appendData(sheetData) {
   sheets.spreadsheets.values.update({
 		spreadsheetId: SPREADSHEET_ID,
-		range: 'Sheet1!A' + currRow + ':L' + allData.length + currRow,
+		range: 'Sheet1!A' + currRow + ':L' + (currRow + allData.length),
 		valueInputOption: 'RAW',
 		resource: {
-			values: formattedData
+			values: [sheetData]
 		}
 	});
 	currRow++;
