@@ -52,17 +52,23 @@ function validateNewIds() {
 	},
 	function(err, response) {
 		console.log(response['data']);
-		var names = response['data']['values'][0];
-		for(var i = 0;i < names.length;i++) {
-			validSchoolIds[i] = (names[i] == '');
+		var names = response['data']['values'];
+		if(typeof names == 'undefined') {
+			for(var i = 0;i < schoolIds.length;i++) {
+				validSchoolIds[i] = true;
+			}
+		} else {
+			for(var i = 0;i < names[0].length;i++) {
+				validSchoolIds[i] = (names[0][i] == '');
+			}
 		}
+		
 		initScrape();
 	});
 }
 
 function initScrape() {
 	const highestValid = getHighestValid();
-	console.log(highestValid);
 	for(var i = 0;i < schoolIds.length;i++) {
 		if(validSchoolIds[i]) {
 			scrape(schoolIds[i], (i == highestValid));
@@ -102,11 +108,22 @@ function scrape(schoolId, send) {
 			sheetData.push(rawPopulation.substring(rawPopulation.lastIndexOf('(') + 1, rawPopulation.lastIndexOf(' u'))); //ug population
 			
 			const inState = strSearch(generalInfo.text(), 'California');
-			var sCostRow = 19;
-			var tCostRow = 2;
-			if(inState) { sCostRow = 15; tCostRow = 1; }
 			
-			sheetData.push(getCostValue(expenses, sCostRow)); //sticker price
+			const costRows = expenses.find('.tabular').eq(0).find('tbody').find('tr');
+			var ocRows = [];
+			costRows.each(function(i, elem) {
+				if($(this).find('td').eq(0).text().includes('On Campus')) {
+					ocRows.push(i);
+				}
+			});
+			var costRow = ocRows.length - 1;
+			if(inState && ocRows.length > 2) { costRow--; }
+			sheetData.push(costRows.eq(ocRows[costRow]).find('td').eq(4).text()); //sticker price
+			
+			var tCostRow = 0;
+			if(expenses.text().includes('In-state')) {
+				if(inState) { tCostRow = 1; } else { tCostRow = 2; }
+			}
 			sheetData.push(getCostValue(expenses, tCostRow)); //tuition
 			
 			sheetData.push(boolChooser(inState, 'Y', 'N')); //in-state
@@ -159,7 +176,7 @@ function getRowScoreAvg(testScores, row) {
 }
 
 function getCostValue(base, row) {
-	return base.find('.tabular').find('tbody').find('tr').eq(row).find('td').eq(4).text()
+	return base.find('.tabular').eq(0).find('tbody').find('tr').eq(row).find('td').eq(4).text();
 }
 
 function authorize(credentials, callback) {
@@ -200,7 +217,6 @@ function getAccessToken(oAuth2Client, callback) {
 
 function appendData() {
 	var formattedData = JSON.parse(JSON.stringify(allData));
-	console.log(formattedData);
   sheets.spreadsheets.values.update({
 		spreadsheetId: SPREADSHEET_ID,
 		range: 'Sheet1!A' + currRow + ':L' + allData.length + currRow,
