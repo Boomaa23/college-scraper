@@ -4,14 +4,12 @@ const fs = require('fs');
 const {google} = require('googleapis');
 const readline = require('readline');
 
-var allSheetData = [];
-var sheetData = [];
+var allData = [];
 var schoolIds = [];
 var validSchoolIds = [];
 var json;
 var sheets;
-var startRow = 2;
-var currRow = startRow;
+var currRow = 2;
 
 const ncesUrl = 'https://nces.ed.gov/collegenavigator/?id=';
 const stateApiUrl = 'https://gist.githubusercontent.com/mshafrir/2646763/raw/8b0dbb93521f5d6889502305335104218454c2bf/states_titlecase.json';
@@ -63,15 +61,24 @@ function validateNewIds() {
 }
 
 function initScrape() {
+	const highestValid = getHighestValid();
+	console.log(highestValid);
 	for(var i = 0;i < schoolIds.length;i++) {
 		if(validSchoolIds[i]) {
-			scrape(schoolIds[i]);
+			scrape(schoolIds[i], (i == highestValid));
 		}
 	}
-	
 }
 
-function scrape(schoolId) {
+function getHighestValid() {
+	for(var i = validSchoolIds.length - 1;i >= 0;i--) {
+		if(validSchoolIds[i]) {
+			return i;
+		}
+	}
+}
+
+function scrape(schoolId, send) {
 	axios.get(stateApiUrl)
 		.then(response => {
 			json = JSON.parse(JSON.stringify(response.data));
@@ -82,6 +89,8 @@ function scrape(schoolId) {
 			var generalInfo = $('.collegedash');
 			var admissions = $('#admsns');
 			var expenses = $('#expenses');
+			
+			var sheetData = [];
 			
 			var univNameLoc = generalInfo.find('div').find('span[style="position:relative"]');
 			sheetData.push(univNameLoc.find('.headerlg').text()); //name
@@ -114,9 +123,11 @@ function scrape(schoolId) {
 			sheetData.push(admissions.find('.tabular').find('tbody').find('td').eq(1).text()); //application fee
 			
 			console.log(sheetData);
-			appendData();
-			allSheetData.unshift(sheetData);
-			sheetData = [];
+			allData.push(sheetData);
+			console.log(send);
+			if(send) {
+				appendData();
+			}
 		})
 		.catch(error => {
 			console.log(error);
@@ -188,12 +199,14 @@ function getAccessToken(oAuth2Client, callback) {
 }
 
 function appendData() {
+	var formattedData = JSON.parse(JSON.stringify(allData));
+	console.log(formattedData);
   sheets.spreadsheets.values.update({
 		spreadsheetId: SPREADSHEET_ID,
-		range: 'Sheet1!A' + currRow + ':L' + currRow,
+		range: 'Sheet1!A' + currRow + ':L' + allData.length + currRow,
 		valueInputOption: 'RAW',
 		resource: {
-			values: [sheetData]
+			values: formattedData
 		}
 	});
 	currRow++;
