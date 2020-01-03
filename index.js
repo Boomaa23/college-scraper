@@ -8,7 +8,7 @@ var allData = [];
 var schoolIds = [];
 var json;
 var sheets;
-var currRow = 2;
+var startRow = 2;
 
 const ncesUrl = 'https://nces.ed.gov/collegenavigator/?id=';
 const stateApiUrl = 'https://gist.githubusercontent.com/mshafrir/2646763/raw/8b0dbb93521f5d6889502305335104218454c2bf/states_titlecase.json';
@@ -39,12 +39,12 @@ function getSchoolIds() {
     schoolIds = response['data']['values'][0];
 		console.log(schoolIds);
 		for(var i = 0;i < schoolIds.length;i++) {
-			scrape(schoolIds[i]);
+			scrape(schoolIds[i], i);
 		}
   });
 }
 
-function scrape(schoolId) {
+function scrape(schoolId, index) {
 	axios.get(stateApiUrl)
 		.then(response => {
 			json = JSON.parse(JSON.stringify(response.data));
@@ -101,11 +101,22 @@ function scrape(schoolId) {
 			
 			console.log(sheetData);
 			allData.push(sheetData);
-			appendData(sheetData);
+			appendData(sheetData, index + startRow);
 		})
 		.catch(error => {
 			console.log(error);
 		});
+}
+
+function appendData(sheetData, row) {
+  sheets.spreadsheets.values.update({
+		spreadsheetId: SPREADSHEET_ID,
+		range: 'Sheet1!A' + row + ':L' + row,
+		valueInputOption: 'RAW',
+		resource: {
+			values: [sheetData]
+		}
+	});
 }
 	
 function strSearch(search, query) {
@@ -170,18 +181,6 @@ function getAccessToken(oAuth2Client, callback) {
 			callback(oAuth2Client);
 		});
 	});
-}
-
-function appendData(sheetData) {
-  sheets.spreadsheets.values.update({
-		spreadsheetId: SPREADSHEET_ID,
-		range: 'Sheet1!A' + currRow + ':L' + (currRow + allData.length),
-		valueInputOption: 'RAW',
-		resource: {
-			values: [sheetData]
-		}
-	});
-	currRow++;
 }
 
 main();
